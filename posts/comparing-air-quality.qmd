@@ -1,0 +1,9 @@
+---
+title: "Comparing Air Quality: Patumahoe vs Queen Street"
+date: 2025-04-14
+categories: [Air Quality, Environment]
+---
+
+## Overview
+
+This blog post compares air quality data between a rural and an urban site in Auckland using a dataset of over 14 million rows...
