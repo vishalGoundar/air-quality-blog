@@ -21,6 +21,40 @@ ul.task-list li input[type="checkbox"] {
   margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
   vertical-align: middle;
 }
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
 </style>
 
 
@@ -76,6 +110,30 @@ ul.task-list li input[type="checkbox"] {
 <section id="overview" class="level2">
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
 <p>This blog post compares air quality data between a rural and an urban site in Auckland using a dataset of over 14 million rows…</p>
+<p>Here’s an analysis of how urban traffic might influence air quality…</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(readxl)</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>air_quality <span class="ot">&lt;-</span> <span class="fu">read_excel</span>(<span class="st">"../../data/LAWA/lawa_airqualitydownloaddata_2016-2023 5.xlsx"</span>, </span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>                          <span class="at">sheet =</span> <span class="st">"Monitoring dataset"</span>)</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="fu">str</span>(air_quality)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>tibble [232,293 × 12] (S3: tbl_df/tbl/data.frame)
+ $ Region       : chr [1:232293] "Auckland region" "Auckland region" "Auckland region" "Auckland region" ...
+ $ Agency       : chr [1:232293] "Auckland Council" "Auckland Council" "Auckland Council" "Auckland Council" ...
+ $ LAWA Site ID : chr [1:232293] "LAWA-100059" "LAWA-100059" "LAWA-100059" "LAWA-100059" ...
+ $ Site Name    : chr [1:232293] "Glen Eden" "Glen Eden" "Glen Eden" "Glen Eden" ...
+ $ Site ID      : chr [1:232293] "67" "67" "67" "67" ...
+ $ Latitude     : chr [1:232293] "-36.922142811073" "-36.922142811073" "-36.922142811073" "-36.922142811073" ...
+ $ Longitude    : chr [1:232293] "174.652000900011" "174.652000900011" "174.652000900011" "174.652000900011" ...
+ $ Town         : chr [1:232293] "Glen Eden" "Glen Eden" "Glen Eden" "Glen Eden" ...
+ $ Site Type    : chr [1:232293] "Residential, NES site" "Residential, NES site" "Residential, NES site" "Residential, NES site" ...
+ $ Indicator    : chr [1:232293] "PM10" "PM10" "PM10" "PM10" ...
+ $ Sample Date  : POSIXct[1:232293], format: "2016-01-01" "2016-01-02" ...
+ $ Concentration: num [1:232293] 11.1 10.6 4.7 6.9 13.2 11.1 15.2 10.7 15.2 10.6 ...</code></pre>
+</div>
+</div>
 </section>
 
 </main>
