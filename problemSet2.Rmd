@@ -1,0 +1,1200 @@
+---
+title: "ENVSCI 705 'Handling Environmental Data' - Problem Set 2"
+author: "Vishal Goundar (vgou006)"
+output:
+  html_document:
+    df_print: paged
+header-includes: \usepackage{xcolor}
+urlcolor: blue
+---
+
+Answers to this problem set are due **Friday 4^th^ April**.  Please upload the RMarkdown file via Canvas. **Submissions in other file formats will not be marked**.  You will need to use the help to answer some of these questions, but we have discussed nearly everything here in the recorded sessions up to and including the material on dplyr and tidyr. Insert the code chunks and remember to name them, and use comments in the code.  For all plots, label axes as appropriately, etc.; otherwise all the instructions are given below.  Where you are asked for comments, add these as Markdown text.
+
+In the following, I have used _italics_ for variable (column) names, **bold** for data frames, and used the standard formatting for R code.
+
+I have also included examples of the graphs for some of the questions as a guide -- these show you what I'm hoping you'll produce. Your goal is **not** to perfectly reproduce these!  Note, I have suppressed some of the warning messages that you are likely to receive.
+
+All of the data sets you will need are included with the [_ltersampler_ package](https://lter.github.io/lterdatasampler/).  You can install it in the usual way through RStudio.
+
+### Question one    
+Load the `ltersampler` package.  Load the **and_vertebrates** data frame, which contains count and size data for cutthroat trout and salamanders in clear-cut or old-growth forest in Mack Creek, Andrews Forest LTER.
+
+```{r load_and_vertebrates}
+# Load lterdatasampler library 
+library(lterdatasampler)
+
+# Load and_vertebrates data
+data(and_vertebrates)
+
+# View structure of the data (number of observations, variables, and types)
+str(and_vertebrates)
+```
+##### **This tibble contains 32,209 observations and 16 variables related to fish sampling data, including year, site, species, measurements (length, weight), and sampling details. The data types include numeric, character, and date formats, reflecting a detailed structure for biological field survey records.**
+
+##### a. In this section, we explore the structure and summary statistics of the and_vertebrates dataset from the lterdatasampler package to understand fish and salamander sampling in Mack Creek.
+```{r summary_and_vertebrates}
+# Generate a summary of the dataset
+summary(and_vertebrates)
+```
+
+##### **Summary Insights:**  
+- Sampling years span from **1987 to 2019**, with data from various **sites and habitat sections**.  
+- Key biological variables include **species**, **length (max: 284 mm)**, and **weight (max: 134.59 g)**.  
+- Some fields such as `pitnumber`, `length_2_mm`, and `weight_g` contain **missing values**, indicating optional or incomplete records.
+
+
+##### b. Add a column called _month_ derived from the _sampledate_ column (hint: check out the lubridate package; reduce _sampledate_ to just the month)
+```{r extract_month_from_sampledate}
+# Load dplyr for data manipulation
+library(dplyr)
+
+# Load lubridate for date extraction
+library(lubridate)
+
+# Create month column from sampledate
+and_vertebrates <- and_vertebrates |>
+  mutate(
+    month = month(sampledate, label = TRUE, abbr = TRUE)
+    )
+
+# Check the distinct months
+unique(and_vertebrates$month)
+```
+
+##### **The sample data is collected for the months of August, September, and October.**
+
+##### c. Calculate and show the following statistics on the _length_1_mm_ variable for Coastal giant salamander only (use the _species_ variable): maximum, mean, median, 5% percentile, 95% percentile, and sample size (count)). You will need to work out what to do about the NA values (hints: `drop_na` and `na.rm = TRUE`).
+```{r summarize_salamander_length}
+# Calculate maximum, mean, median, 5% and 95% percentile, and count
+and_vertebrates |>
+  filter(species == "Coastal giant salamander") |> # Filter the specific species
+  summarise(
+    maximum = max(length_1_mm, na.rm = TRUE),
+    mean = mean(length_1_mm, na.rm = TRUE), 
+    median = median(length_1_mm, na.rm = TRUE),
+    percentile_5 = quantile(length_1_mm, probs = 0.05, na.rm = TRUE),
+    percentile_95 = quantile(length_1_mm, probs = 0.95, na.rm = TRUE),
+    salamander_count = length(species),
+    salamander_count_with_non_missing_length = sum(!is.na(length_1_mm))
+    )
+```
+
+##### **There was 11758 coastal giant salamander sampled which had maximum length of 181mm, mean of around 57mm, median of around 55mm, 5% percentile of 28mm, and 95% percentile of 99mm. 11749 species had length measurements.**
+
+##### d. Calculate the number of Cutthroat trout sampled and their median _weight_g_ in each year.  Arrange the output by descending median _weight_g_.
+```{r statistics_cutthroat_trout}
+# Load dplyr 
+library(dplyr)
+
+# Calculate the number, and median weight_g arranged in descending median weight_g
+vertebrates_temp1 <- and_vertebrates |>
+  filter(species == "Cutthroat trout") |>
+  group_by(species, year) |> 
+  summarise(
+    Cutthroat_sample_size = n(), # Count species in each year
+    median_weight_g = median(weight_g, na.rm = TRUE), # Calculate median weight
+    .groups = "drop" # Ungroup after summarizing
+  ) |>
+  arrange(desc(median_weight_g)) # Arrange in descending median
+
+# View first few rows
+head(vertebrates_temp1)
+```
+```{r cutthroat_trout_summary}
+summary(vertebrates_temp1)
+```
+##### **This summary shows 33 yearly records for cutthroat trout from 1987 to 2019, with sample sizes ranging from 302 to 888 individuals per year. The median fish weight varies between 1.04g and 12.53g, with some years (9) missing weight data.**
+
+##### e. How long is the longest Cutthroat trout in the data frame, how much heavier than the median weight is it, and what year was it sampled in? Make a box-plot of the length (_length_1_mm_) of the trout in each year. Again, you'll need to deal with the NAs.
+
+```{r Statistics_longest_Cutthroat_trout}
+# Load necessary libraries
+library(dplyr)
+
+# Find the length of the longest Cutthroat trout
+and_vertebrates |>
+  filter(
+    species == "Cutthroat trout",
+    !is.na(length_1_mm) | !is.na(length_2_mm)
+    ) |> # Required species
+  mutate(
+    median_weight = median(weight_g, na.rm = TRUE),
+    max_length = pmax(length_1_mm, length_2_mm, na.rm = TRUE), # Find the longest trout length, ignore NA's
+    deviation_from_median = weight_g - median_weight
+    ) |>
+  filter(
+    max_length == max(max_length, na.rm = TRUE) # Filter the row with the longest trout
+  ) |>
+  select(
+    species, max_length, year, weight_g, median_weight, deviation_from_median
+  )
+``` 
+
+##### **The longest Cutthroat trout measured 253 mm and was caught in 2008, weighing 30.25g more than the median (6.15g).**
+
+```{r boxplot_trout_lengths, fig.align = "center", fig.cap="Figure 1: Boxplot showing inter-annual variation in Cutthroat trout lengths."}
+# Load ggplot2 for plotting 
+library(ggplot2)
+
+# Load library to create interactive plot
+library(plotly)
+
+# Load dplyr for data manipulation
+library(dplyr)
+
+# Create boxplot of length_1_mm of trout in each year.
+p <- and_vertebrates |> 
+  filter(
+    species %in% "Cutthroat trout",
+    !is.na(length_1_mm) # Filter the missing length_1_mm values
+  ) |>
+  ggplot(aes(x = factor(year), y = length_1_mm)) +
+  geom_boxplot(alpha = 0.6, outlier.colour = "red", outlier.shape = 16, outlier.size = 2) + # Highlight outliers
+  theme_bw() +
+  labs(
+    title = "Distribution of Cutthroat Trout Lengths (mm) across Sampled Years",
+    y = "Length (mm)"
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1), # Rotate x-axis labels
+    legend.position = "none", # Remove legend
+    plot.title = element_text(size = 12, face = "bold"),
+    axis.ticks = element_line(linewidth = 1) # Width of axis ticks
+  ) +
+  scale_x_discrete(
+    name = "Year", breaks = seq(1985, 2020, 3)
+    )
+
+# Display the interactive plot
+ggplotly(p)
+```
+
+##### **The graph illustrates the distribution of Cutthroat trout lengths (mm) over sampled years, spanning from 1987 to 2019. It illustrates varying length ranges, with the distribution fluctuating each year. These variations could indicate changes in trout growth patterns or environmental influences over time.**
+
+##### f. Produce a faceted plot of the length-mass (_length_1_mm_ vs. _weight_g_) relationship for the three species in the **and_vertebrates** data.
+```{r facet_length_vs_weight_by_species, fig.align = "center", fig.cap="Figure 2: Faceted scatter plots showing the length-weight relationship for each species."}
+# Load necessary libraries
+library(ggplot2)
+
+# Faceted plot of length_1_mm vs. weight_g for each species
+and_vertebrates |>
+  filter(!is.na(length_1_mm)  & !is.na(weight_g) # Ensure no missing values
+  ) |>
+  ggplot(aes(x = weight_g, y = length_1_mm)) + 
+  geom_point(alpha = 0.6, size = 1.2) +
+  facet_wrap(~ species, scale = "free") + # Allow free scales for species differences
+  theme_bw() + # For black and white background
+  labs(
+    title = "Length (mm) vs. Weight (g) Across Three Species",
+    subtitle = "Faceted by species using free axes for meaningful comparison",
+    x = "Weight (g)",
+    y = "Length (mm)"
+    ) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold"), # Center-align and bold the title
+    plot.subtitle = element_text(hjust = 0.5, face = "italic"), # Center-align and italize the subtitle
+    strip.text = element_text(face = "bold")
+  )
+```
+
+##### **Observations:**
+- *Cascade torrent salamander* shows minimal variation, rarely exceeding 40mm in length or 2g in weight.
+- *Coastal giant salamander* spans wider size ranges, reaching 150mm+ and 100g+.
+- *Cutthroat trout* shows the broadest distribution, with clear positive length-weight scaling, exceeding 200mm and 100g.
+
+
+### Question two
+
+##### Load the **luq_streamchem** data frame (in `ltersampler`), which describes stream chemistry data from Quebrada Sonadora in Puerto Rico (1987-1992).  Hurricane Hugo hit this site on 18-09-1989.  
+```{r load_luq_streamchem_data}
+# Load necessary package and dataset
+library(lterdatasampler)
+data(luq_streamchem)
+
+# View the structure of the data
+str(luq_streamchem)
+```
+##### **The luq_streamchem dataset includes 317 observations across 22 variables, measuring physical and chemical properties of stream water at site “QS” from 1987 to 1992. Parameters include temperature, pH, conductivity, major ions, nutrients (e.g., NO₃⁻, NH₄⁺), and suspended solids.**
+
+```{r summary_luq_streamchem}
+# Display summary statistics
+summary(luq_streamchem)
+```
+
+##### **Summary statistics reveal central tendencies and ranges for each variable. Key environmental indicators like temperature, pH, and conductivity are well populated, while several nutrient-related variables (e.g., tdp, po4_p, nh4_n) show substantial missingness.**
+
+##### a. It will be much easier (although not absolutely required) if we pivot these data from wide to long format (i.e., from the 20 columns each with a variable to four columns, two  with the ID variables (_sample_id_ and _sample_date_), the third the variable value, and the fourth the value for that variable.
+
+```{r reshape_data_from_wide_to_long_format}
+# Load tidyr for reshaping
+library(tidyr)
+
+# Convert from wide to long format
+luq_long <- luq_streamchem |>
+  pivot_longer(
+    cols = -c(sample_id, sample_date), 
+    names_to = "name",
+    values_to = "value"
+  )
+
+# Check structure of reshaped data
+str(luq_long)
+```
+
+##### **The reshaped data frame contains 6,340 rows in long format. Each row represents a single measurement (name and value) for a given sample_id and sample_date.**
+
+##### b. Having pivoted the data, look at the completeness of the monitoring for the 19 measured variables. Make a bar plot of the number of NAs in each of those 19 variables arranged (hint: you could use `sum` and `is.na` for this) with the percentage missing as text above the bar (hint: use `geom_text` and the `vjust` argument).
+
+```{r count_missing_values_for_each_variable}
+# Count missing values for each variable
+na_summary <- luq_long |>
+  group_by(name) |>
+  summarise(
+    missing_value_count = sum(is.na(value)),
+    total_values = n(),
+    .groups = "drop"
+  )
+
+# Display the results
+na_summary
+```
+##### **This summary shows that while most variables have complete data, a few variables, such as "tdp" and "po4_p," exhibit substantial missing values, indicating uneven data completeness across measurements.**
+
+```{r percentage_of_missing_values}
+# Calculate percentage of missing values
+na_summary <- na_summary |>
+  mutate(
+    percent_missing = round(missing_value_count / total_values * 100, 1) # Calculate the % of missing values
+  ) |>
+  arrange(name) # Arrange names in ascending order
+
+# Summary of the reframed data 
+summary(na_summary)
+```
+##### **This shows a summary of missing data for 20 variables, with the percentage of missing values ranging from 0.9% to 100%. Several variables, like "tdp" and "don," have high percentages of missing data.**
+
+```{r barplot_of_number_of_NA, fig.align = "center", fig.width = 9, fig.cap="Figure 3: Bar plot of number of missing values."}
+
+# Bar plot of the number of NAs in each of the 19 variables 
+plot_missing <- ggplot(na_summary, aes(x = name, y = missing_value_count)) +
+  geom_bar(stat = "identity") + 
+   geom_text(
+    aes(label = paste0(percent_missing, "%"), vjust = -0.5) # percentage missing placed on top of the bars
+  ) + 
+  theme_bw() + # For black and white background
+  labs(
+    title = "Count and Percentage of Missing Data in Each Variable",
+    x = "Variable",
+    y = "Number of Missing Observations"
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1), # Rotate x-axis labels
+    plot.title = element_text(hjust = 0.5, size = 12)
+  )
+
+# Display the plot
+plot_missing
+```
+
+##### **The bar plot visually displays the count and percentage of missing data for each variable. Variables like "tdp," "don," and "po4_p" exhibit high levels of missingness, while variables like "ca," "na," and "mg" show minimal missingness, indicating better data completeness for these measurements.**
+
+##### c. Plot the temporal dynamics of the following variables (i.e., variable on the y-axis and time on the x-axis) as a facet plot: _cond_, _k_, _mg_, _na_, _no3_n_, _temp_, _tss_.  You should use a combination of `filter` and  `%in%` statements to select the variables of interest. Include a smoother on each facet.  
+```{r temporal_dynamics_of_chosen_variables}
+# Filter for selected variables
+selected_vars <- c("cond", "k", "mg", "na", "no3_n", "temp", "tss")
+
+# Subset the data
+luq_long_select <- luq_long |>
+  filter(name %in% selected_vars)
+
+# Preview structure
+str(luq_long_select)
+```
+##### **This subset includes 2,219 observations of seven water chemistry variables measured over time at the QS site, each observation tied to a sampling date and variable.**
+
+```{r facet_plot_trends_luq_long_select, fig.align = "center", fig.cap="Figure 4: Facet plot of temporal dynamic of variables."}
+
+# Plot temporal trends using facets
+plot_facet <- luq_long_select |>
+  filter(!is.na(value)) |> # Filter out the NA's
+  ggplot(aes(x = sample_date, y = value)) +
+  geom_line() +
+  geom_smooth(method = "loess", formula = "y~x") +
+  facet_wrap(~ name, scales = "free_y") +
+  theme_bw() +
+  labs(
+    title = "Temporal Trends of Selected Water Chemistry Variables",
+    x = "Date",
+    y = "Measured Value"
+  ) + 
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    plot.title = element_text(hjust = 0.5, size = 12, face = "bold")
+  )
+
+# Show the plot
+plot_facet
+```
+
+##### **The faceted plots reveal varied temporal dynamics among the selected variables. Temperature (temp) shows a steady upward trend, possibly linked to climatic changes. Nitrate (no3_n) gradually declines, while Total Suspended Solids (tss) exhibit seasonal peaks. Conductivity (cond) and Magnesium (mg) remain relatively stable, and Sodium (na) shows moderate fluctuation. These trends suggest diverse environmental and hydrological influences on stream chemistry over time.**
+
+##### d. For the same variables as in 2c, plot the mean values of each variable in each month with years delineated by colour.  There are a few ways you could choose to show this, including line plots, bar plots, jitter plots, etc.  However you do this, there are a few steps involved, so breakdown the problem into its component parts and solve them one-by-one.
+
+```{r extract_month_and_year_from_sample_date}
+# Load lubridate to extract month and year
+library(lubridate)
+
+# Create month and year columns from sample_date
+monthly_data <- luq_long_select |>
+  mutate(
+    month = month(sample_date), 
+    year = year(sample_date)
+    )
+
+# Diplay summary of the updated dataset
+summary(monthly_data)
+```
+##### **This dataset includes 2,219 observations of selected water quality variables from 1987 to 1992, with extracted month and year columns. The value column ranges from 0.07 to 631, and 148 values are missing.**
+
+```{r calculate_monthly_means_of_variables}
+# Calculate monthly means for each variable and year
+monthly_means <- monthly_data |>
+  group_by(name, month, year) |>
+  summarise(
+    mean_value = ifelse(any(is.na(value)), NA, mean(value, na.rm = TRUE)),
+   .groups = "drop"
+  )
+
+# Summary of the aggregated monthly means
+summary(monthly_means)
+```
+##### **This summarised data shows mean values for each selected variable by month and year. Means range from 0.16 to 299.75, and 88 rows have missing mean values due to incomplete data in certain months.**
+
+```{r plot_monthly_average_values_of_variables, fig.align="center", fig.cap="Figure 5: Monthly Means of each variable in each year."}
+
+# Faceted line plot showing monthly means over years
+plot_monthly_means <- ggplot(monthly_means, aes(x = month, y = mean_value, color = factor(year))) +
+  geom_line(na.rm = FALSE) + # Lines will break if data is missing
+  facet_wrap(~ name, scales = "free") +
+  scale_x_continuous(breaks = 1:12) + # Ensure whole months (1 to 12) are shown
+  theme_bw() +
+  labs(
+    title = "Monthly Mean Values of Selected Variables by Year",
+    x = "Month",
+    y = "Mean Value",
+    color = "Year"
+  ) + 
+  theme(
+    plot.title = element_text(size = 12, face = "bold", hjust = 0.5)
+  )
+
+# Display the plot
+plot_monthly_means
+```
+
+##### **The faceted line plot shows monthly average trends for each variable from 1987 to 1992. Colour-coded lines distinguish years, revealing seasonal cycles, interannual variability, and data gaps where lines break. This visualisation helps identify which variables follow strong seasonal patterns (e.g., temperature), and which vary less over time (e.g., sodium).**
+
+##### e. The site these data were collected from was affected by Hurricane Hugo, which made landfall in early September 1989 (18th).  Produce a plot as per 2c but with a vertical line at the date of the hurricane and the variables having different colours before and after the hurricane occurred.
+
+```{r classify_before_and_after_hurricane_date}
+# Define the hurricane date
+hugo_date <- as.Date("1989-09-18")
+
+# Classify observations as before or after the hurricane
+luq_hurricane <- luq_long_select |>
+  mutate(
+    period = case_when(
+      sample_date < hugo_date ~ "FALSE", 
+      sample_date > hugo_date ~ "TRUE", 
+      TRUE ~ "On Event Date"
+    )
+    )
+
+# Summary of the modified dataset
+summary(luq_hurricane)
+```
+
+##### **This summary shows 2,219 long-format water quality measurements from 1987 to 1992, with each value labeled as occurring before, after, or on the date of Hurricane Hugo (18 September 1989), enabling temporal comparison of environmental conditions.**
+
+```{r plot_classified_values_before_and_after_hurricane, fig.align = "center", fig.cap="Figure 6: Classified variable values before and after hurricane Hugo"}
+
+# Plot values before and after Hurricane Hugo with color distinction
+plot_hugo <- ggplot(luq_hurricane,  aes(x = sample_date, y = value, color = period)) +
+  geom_line(linewidth = 1) +
+  geom_vline(xintercept = hugo_date, lty = "dashed", color = "black") + # Add Vertical line to show hugo date
+  facet_wrap(~ name, scales = "free") +
+  theme_bw() +
+  labs(
+    title = "Water Chemistry Changes Surrounding Hurricane Hugo",
+    subtitle = "Delineated by pre- and post-hurricane observations (18 Sep 1989) ",
+    x = "Date",
+    y = "Measured Value",
+    color = "Post Hugo?"
+  ) + 
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 12),
+    plot.subtitle = element_text(face = "italic", hjust = 0.5, size = 10) # Makes subtitle italic
+  )
+
+plot_hugo
+```
+
+##### **This figure visualizes how water chemistry variables changed before and after Hurricane Hugo. The dashed vertical line marks the event date, while color-coded lines show potential shifts in trends—for example, increased variability or change in levels of conductivity, nitrate, or suspended solids—indicating the hurricane’s impact on environmental conditions.**
+
+##### f. So, how large were these changes in water chemistry?  Make violin plots with data points superimposed as a jitter of the time before the hurricane and 12 months after the event.  Then, make a table showing the mean, standard deviation, and % change in each of the six variables during that 12 month period compared to the pre-hurricane values.
+
+```{r classify_sample_date_into_before_and_12months_after}
+# Define 12 months after hurricane date
+one_year_after_hugo <- as.Date("1990-09-18") 
+
+# Classify data into before and 12 months after hurricane hugo
+luq_hurricane <- luq_long_select |>
+  filter(sample_date <= one_year_after_hugo) |>
+  mutate(
+    period_12_month = ifelse(sample_date <= hugo_date, "FALSE", "TRUE")
+  )
+
+# View the structure of the reshaped data
+str(luq_hurricane)
+```
+
+##### **This tibble contains 1,386 water quality measurements, categorized as pre- or post-hurricane based on the period_12_month column, to assess the impact of Hurricane Hugo on water chemistry.**
+
+```{r violin_and jitter_plot_of_before_and_12_months_after, fig.align = "center", fig.cap="Figure 7: Violln plot with jitter of variable values before and 12 months after hurricane."}
+
+plot_12month <- ggplot(luq_hurricane, aes(x = period_12_month, y = value)) + 
+  geom_violin(aes(color = period_12_month), width = 0.8, linewidth = 1) + 
+  facet_wrap(~ name, scales = "free") +
+  geom_jitter(aes(color = period_12_month), width = 0.1) +
+  theme_bw() +
+  labs(
+    title = "Distribution of Values Before and 12 Months After Hurricane Hugo",
+    x = "Post-Hurricane?",
+    y = "Water Chemistry Variable Value",
+    color = "Post Hugo?"
+    ) +
+  theme(
+    legend.position = "bottom",
+    plot.title = element_text(size = 12, face = "bold", hjust = 0.5)
+    )
+
+# Display plot
+plot_12month
+```   
+
+##### **The violin plot visually contrasts the distribution of water chemistry data before and after Hurricane Hugo, highlighting shifts in variables like 'cond', 'k', 'mg', 'na', 'no3_n', 'temp', and 'tss', with notable differences post-hurricane.**
+
+```{r calculate_mean_sd_variables}
+# Calculate mean and SD for each variable
+temp_statistics <- luq_hurricane |>
+  group_by(name, period_12_month) |>
+  summarise(
+    mean = mean(value, na.rm = TRUE),
+    SD = sd(value, na.rm = TRUE),
+    .groups = "drop"
+  )
+```
+
+```{r calculate_the_percentage_change_in_mean}
+# Calculate percentage change between pre- and post-hurricane means
+temp_statistics <- temp_statistics |>
+  group_by(name) |>
+  mutate(
+    pre_hugo_mean = mean[period_12_month %in% "FALSE"],
+    post_hugo_mean = mean[period_12_month %in% "TRUE"],
+    delta = (post_hugo_mean - pre_hugo_mean) / pre_hugo_mean * 100
+    ) |>
+  select(period_12_month, name, mean, SD, delta)
+```
+```{r name_the_summary_table}
+# Load knitr library to name the table
+library(knitr)
+
+kable(temp_statistics, 
+      caption = "Summary of Mean and Standard Deviation Changes Before and After Hurricane Hugo",
+      digits = 2) # Rounds numbers to 2 decimal places for better readability
+```
+
+##### **The table summarizes the mean, standard deviation, and percentage change for each variable before and after Hurricane Hugo, revealing significant increases in variables like nitrate (no3_n), potassium (k), and total suspended solids (tss), while other variables like magnesium (mg) show more modest changes.**
+
+### Question three
+##### Load the **ntl_icecover** data frame (again in `ltersampler`), which describes air temperature and ice cover on two lakes in Madison, Wisconsin, over the 168 years of 1851-2019.
+
+```{r Load_ntl_icecover_data}
+# Load required library and dataset
+library(lterdatasampler)
+data(ntl_icecover)
+
+# Inspect structure
+str(ntl_icecover)
+```
+
+##### **The dataset contains 334 observations and 5 variables recording annual ice-on and ice-off dates, total ice duration (in days), and lake identifiers for two Madison lakes (Mendota and Monona) from 1851 to 2019.**
+
+```{r summarize_ntl_icecover_data}
+summary(ntl_icecover)
+```
+
+##### **Summary statistics reveal missing data for some years, especially for ice_on, ice_off, and ice_duration. Lake Wingra is present in the factor levels but lacks observations.**
+
+```{r find_non_finite_ice_duration_values}
+# Load dplyr library to use |>
+library(dplyr)
+
+# Filter rows with non-finite ice_duration values
+problem_rows <- ntl_icecover |>
+  filter(!is.finite(ice_duration))
+
+# View the problematic rows
+print(problem_rows)
+```
+
+##### **There are three rows with missing ice_duration values in the early 1850s. These will be removed for analysis.**
+
+```{r remove_infinite_ice_duration_values}
+# Remove rows with non-finite values
+ntl_icecover_clean <- ntl_icecover |>
+  filter(is.finite(ice_duration)) 
+
+# Check cleaned dataset
+str(ntl_icecover_clean)
+```
+
+##### **The cleaned dataset contains 331 observations across the same 5 variables, ready for analysis.**
+
+##### a. As usual, start with some basic exploratory visualisation of the data.  In this case, use an appropriate plot to show the difference in the distributions of _ice_duration_ between the two lakes. Compare the change in ice duration for (i) the two lakes over time, and (ii) the average duration with a linear smoother.  Use the 'patchwork' library to place the plots side-by-side.
+
+```{r boxplot_distribution_by_lake, fig.align = "center", fig.cap="Figure 8: Distribution of Ice Duration for Lake Mendota and Lake Monona."}
+
+# Load ggplot2 library to plot
+library(ggplot2)
+
+# Create boxplots with jitter showing the distribution of ice_duration by Lake
+plot_lakes <- ggplot(ntl_icecover_clean, aes(x = lakeid, y = ice_duration, color = lakeid)
+) + 
+  geom_boxplot(outlier.size = 2.5, linewidth = 1) +
+  geom_jitter(alpha = 0.5, width = 0.2, size = 1.8) + # Improved jitter settings 
+  theme_bw() + 
+  labs(
+    title = "Distribution of Ice Duration in Individual Lakes",
+    x = "Lake",
+    y = "Ice Duration (days)",
+    color = "Lake"
+    ) +
+  theme(
+    plot.title = element_text(size = 12, face = "bold", hjust = 0.5)
+  )
+
+# Plot
+plot_lakes
+```
+
+##### **Lake Mendota generally shows longer and more consistent ice duration, while Lake Monona exhibits a wider spread of values.**
+
+```{r Change_in_ice_duration_for_lakes_over_time}
+# Plot time series of ice duration by Lake to observe trends over time
+plot_individual <- ggplot(ntl_icecover_clean, aes(x = year, y = ice_duration, color = lakeid)) +
+  geom_line() +
+  theme_bw() +
+  labs(title = "Annual Ice Duration by Lake", 
+       x = "Year",
+       y = "Ice Duration (days)",
+       color = "Lake"
+       ) +
+  theme(
+    legend.position = "bottom",
+    plot.title = element_text(size = 10, face = "bold", hjust = 0.5)
+        )
+```
+
+```{r calculate_average_ice_duration}
+# Load dplyr library to use reframe function
+library(dplyr)
+
+# Average ice duration per year (across lakes)
+avg_ice_duration <- ntl_icecover_clean |>
+  group_by(year) |>
+  reframe(
+    lakeid,
+    avg_duration = mean(ice_duration, na.rm = TRUE)
+  ) |>
+  ungroup()
+```
+
+```{r Average_ice_duration_over_time_of_lakes_with_trend}
+# Plot average annual ice duration across lakes with linear regression trend line
+plot_avg <- ggplot(avg_ice_duration, aes(x = year, y = avg_duration)) +
+  geom_line() +
+  geom_smooth(method = "lm", formula = y ~ x, se = FALSE, lty = "dashed", color = "red", linewidth = 1) + # Linear trend
+  theme_bw() +
+  labs(title = "Average Ice Duration over time",
+       x = "Year",
+       y = "Ice Duration (days)"
+       ) +
+  theme(
+    plot.title = element_text(size = 10, face = "bold", hjust = 0.5)
+    )
+```
+
+```{r combine_time_series_plots_of_ice_duration, fig.align = "center", fig.cap="Figure 9: Side-by-Side Comparison of Individual Lake Trends and Overall Averages."}
+
+# Load patchwork libraries
+library(patchwork)
+
+# Combine individual lake trend plot and average duration plot using patchwork
+(plot_individual | plot_avg) +
+  plot_annotation(
+    title = "Ice Duration Trends from 1851-2019"
+    )
+```
+
+##### **Both lakes exhibit a clear long-term decline in ice duration, consistent with climate change trends. The red dashed line indicates a negative linear trend in the overall average, suggesting warming winter temperatures over time.** 
+
+##### b. Often when exploring temporal data we're interested in the difference of each observation from some reference value rather than their absolute values (i.e., the 'anomalies').  Two common ways to express anomalies are: (i) distance from the mean of the entire series, or (ii) the _z_-value, which is $(x_i - mean(x) / sd(x))$ where $x_i$ is each individual value.  The `scale` command in base R calculates the z-scores by centering (subtracting the mean) and scaling (dividing by the SD) or you can do it manually. Remember to deal with the NAs!  Plot the two anomalies over time using the individual lake data and the averaged data. 
+
+```{r calculate_anomalies_individual_lakes}
+# Calculate mean and scaled anomalies (z-scores) for each lake
+temp_individual <- ntl_icecover_clean |>
+  group_by(lakeid) |>
+  reframe(
+    lakeid, year,
+    mean_anomaly = ice_duration - mean(ice_duration, na.rm = TRUE), # Calculate mean anomaly
+    scaled_anomaly = scale(ice_duration, center = TRUE, scale = TRUE) # Z-score calculation
+    ) 
+
+# View first few rows
+head(temp_individual)
+```
+```{r calculate_anomalies_of_all_lakes}
+# calculate mean and scaled anomalies for average ice duration across all lakes
+temp_avg <- avg_ice_duration |>
+  reframe(
+    lakeid, year,
+    mean_avg_ice_duration = mean(avg_duration, na.rm = TRUE),
+    mean_anomaly = avg_duration - mean_avg_ice_duration,
+    scaled_anomaly = scale(avg_duration, center = TRUE, scale = TRUE) # Z-score calculation
+  )
+
+# View first few lines
+head(temp_avg)
+```
+```{r plot_mean_anomalies_of_individual_lakes}
+# Load ggplot2 library to plot
+library(ggplot2)
+
+# Plot mean anomalies (deviation from each Lake's mean) over time
+plot_individual <- ggplot(temp_individual, aes(x = year, y = mean_anomaly, color = lakeid)) +
+  geom_line() +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  theme_bw() +
+  labs(
+    title = "Deviation from Individual Mean's Over Time",
+    x = "Year",
+    y = "Deviation from Mean Ice Duration (days)",
+    color = "Lake"
+  ) +
+  theme(
+    plot.title = element_text(size = 10),
+    axis.title = element_text(size = 10),
+    legend.position = "bottom"
+    )
+``` 
+
+```{r plot_mean_anomalies_of_all_lakes}
+# Plot mean anomalies (deviation from overall mean) of averaged Lake ice durations
+plot_avg <- ggplot(temp_avg, aes(x = year, y = mean_anomaly)) +
+  geom_line() +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  theme_bw() +
+  labs(
+    title = "Deviation from Averaged Means Over Time",
+    x = "Year",
+    y = "Deviation from Mean Ice Duration (days)"
+  ) +
+  theme(
+    plot.title = element_text(size = 10),
+    axis.title = element_text(size = 10)
+  )
+```
+
+```{r side_by_side_mean_anomaly_plots, fig.align = "center", fig.cap="Figure 10: Mean Anomalies in Ice Duration for Individual Lakes and Combined Average (1851–2019)."}
+
+# Load patchwork library for side by side plot
+library(patchwork)
+
+# Place the plots side-by-side.
+(plot_individual | plot_avg) +
+  plot_annotation(title = "Mean Anomaly of Ice Duration in Individual and All Lakes over years")
+```
+
+##### **Lake Monona shows higher year-to-year variability in ice duration compared to Lake Mendota. Averaging across lakes reduces this variability, showing a general downward anomaly trend over time.**
+
+```{r plot_scaled_anomalies_of_individual_lakes}
+# Load ggplot2 library to plot
+library(ggplot2)
+
+# Plot standardized anomalies (z-scores) over time for each lake
+plot_z_individual <- ggplot(temp_individual, aes(x = year, y = scaled_anomaly, color = lakeid)) + 
+  geom_line() + # Plot z anomalies
+  geom_hline(yintercept = 0, linetype = "dashed", linewidth = 1) + # Add a horizontal line at y=0 to indicate the mean
+  theme_bw() +
+  labs(title = "Scaled Anomalies of Individual Lake",
+       x = "Year",
+       y = "Scaled anomalies (z) of each lake",
+      color = NULL # Remove the legend name
+     ) +
+  theme(
+    legend.position = "bottom", 
+    plot.title = element_text(size = 10, face = "bold"),
+    axis.text = element_text(size = 10)
+  ) 
+```
+
+```{r plot_scaled_anomalies_of_all_Lakes}
+# Plot standardized anomalies (z-scores) over time for the averaged data
+plot_z_avg <- ggplot(temp_avg, aes(x = year, y = scaled_anomaly)) +
+  geom_line() +
+  geom_hline(yintercept = 0, linetype = "dashed", linewidth = 1) +
+  labs(
+    title = "Scaled Anomalies of All Lake",
+    x = "Year",
+    y = "Scaled anomalies (z) of all lakes"
+  ) +
+  theme(
+    plot.title = element_text(size = 10, face = "bold"),
+    axis.text = element_text(size = 10)
+  )
+```
+
+```{r place_scaled_anomaly_plots_side_by_side, fig.align = "center", fig.cap="Figure 11: Standardized Ice Duration Anomalies (Z-scores) for Individual Lakes and Overall Average."}
+
+# Load patchwork library to place plots side by side
+library(patchwork)
+
+# Place the plots side-by-side.
+(plot_z_individual | plot_z_avg) +
+  plot_annotation(title = "Standardized Deviations of Ice Duration from Mean for Individual and All Lake's")
+```
+
+##### **Lake Monona again shows more variability, with frequent spikes and dips. The averaged z-score plot smooths these fluctuations, highlighting the long-term downward shift in ice duration—likely reflecting broader climate changes.**
+
+##### c. Identify the top and bottom 10th quantiles (hint: `?quantile`) of the absolute ($x - mean$) anomalies for the individual lake and averaged data and. Plot the anomalies for each year as a column plot (`geom_col`), highlighting the different year types (top 10th, bottom 10th, other) in different colours, with _lakeid_ as a facet.  The easiest way to do this is to use the `mutate(ifelse(...))` syntax.
+
+```{r calculate_anomaly_percentiles_individual_lakes}
+# Calculate 10th and 90th percentiles of mean anomalies for each individual Lake
+temp_individual <- temp_individual |>
+  group_by(lakeid) |> # Compute per lake
+  mutate(
+    low_quantile = quantile(mean_anomaly, probs = 0.1, na.rm = TRUE),
+    high_quantile = quantile(mean_anomaly, probs = 0.9, na.rm = TRUE)
+    ) |>
+  ungroup()
+
+# View structure of reshaped data
+str(temp_individual)
+```
+
+##### **A tibble with 331 rows and 6 columns summarizing lake-specific anomalies (mean and scaled), quantiles, and years, with lake IDs as factors.**
+
+```{r classify_mean_anomalies_individual_lake}
+# Classify each observation based on percentile thresholds
+temp_individual <- temp_individual |>
+  mutate(
+    percentile_category = case_when(
+      mean_anomaly <= low_quantile ~ "short",
+      mean_anomaly >= high_quantile ~ "long",
+      TRUE ~ "typical")
+    )
+
+# View structure of the reshaped data
+str(temp_individual)
+```
+
+##### **The data now includes a percentile_category column indicating whether the anomaly falls into "short", "long", or "typical" duration years.**
+
+```{r, plot_percentiles_categories_individual, fig.align = "center", fig.cap="Figure 12: Percentile Classification of Ice Duration Anomalies for Individual Lakes (1851–2019)."}
+
+# Load necessary libraries
+library(ggplot2)
+
+# Plot categorized anomalies for each lake using column plots
+p <- ggplot(temp_individual, aes(x = year, y = mean_anomaly, fill = percentile_category)) +
+  geom_col() + # Column plot of mean anomalies
+  facet_wrap(~ lakeid, ncol = 1, scales = "fixed") + # Stack facets vertically with fixed scales
+  theme_bw() +
+  labs(
+    title = "Ice Duration Anomaly Percentiles by Lake",
+    x = "Year",
+    y = "Deviation from Mean Duration (days)"
+    ) +
+  theme(
+    plot.title = element_text(size = 12, face = "bold")
+    ) +
+  scale_fill_manual(
+    name = "Duration Class",
+    values = c("short" = "red", "long" = "green", "typical" = "blue"))
+                    
+# View the plot
+p
+
+# Save the plot
+ggsave("mean_percentile.pdf", p, width = 10, height = 5)
+```
+
+##### **Both Lake Mendota and Lake Monona show predominantly longer ice durations in earlier decades and shorter durations in more recent years. This temporal shift aligns with expectations under global warming trends, which reduce lake ice persistence.**
+
+```{r calc_anomaly_percentiles_avg_duration}
+# Calculate 10th and 90th percentiles for anomalies of the averaged Lake ice duration
+temp_avg <- temp_avg |>
+  mutate(
+    low_quantile = quantile(mean_anomaly, probs = 0.1, na.rm = TRUE),
+    high_quantile = quantile(mean_anomaly, probs = 0.9, na.rm = TRUE)
+    )
+```
+
+```{r classify_mean_anomalies_avg_duration}
+# Classify average anomaly observations using percentile thresholds 
+temp_avg <- temp_avg |>
+  mutate(percentile_category = 
+           ifelse(mean_anomaly <= low_quantile, "short",
+                  ifelse(mean_anomaly >= high_quantile, "long", "typical"))
+         ) 
+
+# View the last few rows
+tail(temp_avg)
+```
+
+```{r, plot_percentile_categories_avg_duration, fig.align="center", fig.cap="Figure 13: Percentile Classification of Ice Duration Anomalies for All Lakes Combined (1851–2019)."}
+
+# Load necessary libraries
+library(ggplot2)
+
+# Column plot of average anomalies categorized by percentile class
+plot_avg <- ggplot(temp_avg, aes(x = year, y = mean_anomaly, fill = percentile_category)) +
+  geom_col() + # Column plot of mean anomalies
+  facet_wrap(~ lakeid, ncol = 1, scales = "free") + # Stack facets vertically with free scales
+  theme_bw() +
+  labs(
+    title = "Percentile Categories of Average Ice Duration Anomalies",
+    x = "Year",
+    y = "Deviation from Mean Ice Duration"
+    ) +
+  theme(
+    plot.title = element_text(size = 12, face = "bold")
+    ) +
+  scale_fill_manual(
+  name = "Duration Class", # Add legend title
+  values = c("short" = "red", "long" = "green", "typical" = "blue")
+)
+                    
+plot_avg
+```
+
+##### **The averaged plot further reinforces the long-term trend: shorter-than-average ice duration years (red bars) increase post-1990s, while longer-than-average years (green) are clustered in the earlier half of the time series. These shifts likely reflect regional climatic warming reducing overall ice cover duration.**
+
+##### d. The next step is to repeat the previous steps for the region.  The air temperature data are in the **ntl_airtemp_ dataset** in `lterdatasampler`. Note that there is a single regional climate record so you won't need to worry about calculating site averages. The steps are:
+ - filter the data so you have only the months that belong to the winter period (this is months 1-4 and 11-12); `%in%` is useful here
+ - make a new data frame with the mean winter air temperature
+ - plot the mean winter air temperature over time, with a linear geom_smoother`
+ - calculate the anomalies for the winter air temperature record
+ - plot the anomalies as in 3b and then classed into percentiles as in 3c
+
+There should be lots of opportunities for code recycling here!
+```{r, load_ntl_airtemp_data}
+# Load lterdatasampler library
+library(lterdatasampler)
+
+# Load the regional air temperature dataset
+data(ntl_airtemp)
+
+# Inspect data structure
+str(ntl_airtemp)
+```
+
+##### **The ntl_airtemp tibble contains over 55,151 rows, including sample dates, years, and adjusted air temperature readings. The data span from 1869 to 2019.**
+
+```{r, summary_of_ntl_airtemp}
+# View the summary
+summary(ntl_airtemp)
+```
+
+##### **The summary shows average air temperatures (adjusted) recorded from 1869 to 2019, ranging from extreme lows of -30.6°C to highs of 33.1°C, with median and mean values near 8°C.**
+  
+```{r filter_ntl_airtemp_for_winter_months}
+# Load lubridate library to extract winter months
+library(lubridate)
+
+# Filter air temperature data for winter months: Jan–Apr and Nov–Dec
+winter_airtemp <- ntl_airtemp |>
+  filter(month(sampledate) %in% c(1:4, 11:12))
+
+# Show distinct months in the filtered dataset
+winter_airtemp |>
+  distinct(month = month(sampledate)) |>
+  pull(month)
+```
+
+```{r calculate_mean_winter_air_temperature_by_year}
+# Calculate annual mean winter air temperature
+winter_airtemp_mean <- winter_airtemp |>
+  group_by(year) |>
+  summarise(
+    mean_temp = mean(ave_air_temp_adjusted, na.rm = TRUE)
+  ) |>
+  ungroup()
+#
+# View structure of the reshaped data
+str(winter_airtemp_mean)
+```
+
+##### **This shows a tibble with 151 rows and 2 columns: year and mean_temp, representing annual mean temperatures from 1869 onward.**
+
+```{r plot_mean_winter_temperature_with_a_trend, fig.align="center", fig.cap="Figure 14: Long-term trend in regional winter air temperature (1869–2019)."}
+
+# Plot annual mean winter air temperature with linear trend
+plot_temp <- ggplot(winter_airtemp_mean, aes(x = year, y = mean_temp)) +
+  geom_line(color = "black") +
+  geom_smooth(method="lm", formula = y~x, color = "red", se = FALSE, lty = "dashed") + 
+  theme_bw() +
+  labs(
+    title = "Mean Winter Air Temperature Over Time with a Trend",
+    x = "Year",
+    y = expression("Mean winter air temperature ("~degree~C~")")
+    ) +
+  theme(
+    plot.title = element_text(size = 12, face = "bold")
+  )
+
+# Display plot
+plot_temp
+```
+
+##### **The plot reveals a general warming trend in regional winter temperatures over the past 150 years.** 
+
+```{r calculate_mean_and_z_anomalies_winter_mean_temperature}
+# Calculate absolute and standardized anomalies (z-scores)
+winter_airtemp_mean <- winter_airtemp_mean |>
+  mutate(
+    mean_anomaly = mean_temp - mean(mean_temp, na.rm = TRUE),
+    scaled_anomaly = scale(mean_temp, center = TRUE, scale = TRUE) # z-score calculation
+  )
+
+# View first two rows
+head(winter_airtemp_mean)
+```
+
+```{r plot_mean_anomalies_of_mean_winter_temperature}
+# Plot mean anomalies of mean winter temperature's
+plot_mean <- ggplot(winter_airtemp_mean, aes(x = year, y = mean_anomaly))  +
+  geom_col() +
+  theme_bw() +
+  labs(title = "Deviations from Mean",
+       x = "Year",
+       y = "Deviations from Mean"
+       ) +
+    theme(
+      plot.title = element_text(size = 10, face = "bold"),
+      axis.text = element_text(size = 10)
+    )
+```
+
+```{r plot_scaled_anomalies_of_mean_winter_temperature}
+# Plot z-score anomalies of mean winter temperatures
+plot_scaled <- ggplot(winter_airtemp_mean, aes(x = year, y = scaled_anomaly))  +
+  geom_col() +
+  theme_bw() +
+  labs(title = "Standardized deviations from Mean",
+       x = "Year",
+       y = "Standardized deviations from mean"
+       ) +
+    theme(
+      plot.title = element_text(size = 10, face = "bold"),
+      axis.text = element_text(size = 10)
+    )
+```
+
+```{r compare_mean_and_scaled_anomalies_mean_winter_temperature, fig.align="center", fig.cap="Figure 15: Regional winter temperature anomalies from the long-term mean."}
+
+# Load patchwork libraries for side by side display
+library(patchwork)
+
+# Create side-by-side plots of raw and standardized anomalies
+(plot_mean | plot_scaled) +
+  plot_annotation(title = "Deviations and Standardized Deviations of Mean Winter Air Temperature")
+```
+
+##### **Yearly deviations and standardized patterns show recurring variability from +4 to -2 and +3 to -2, highlighting cyclic temperature trends over time.**
+
+```{r compute_10th_and_90th_percentiles_winter_temperature}
+# Categorize mean anomalies into percentiles for visualization
+temp_winter_percentile <- winter_airtemp_mean |>
+  mutate(
+    bottom_10th = quantile(mean_anomaly, probs = 0.1, na.rm = TRUE),
+    top_10th = quantile(mean_anomaly, probs = 0.9, na.rm = TRUE),
+    percentile_category = case_when(
+      mean_anomaly < bottom_10th ~ "cool",
+      mean_anomaly > top_10th ~ "warm",
+      TRUE ~ "typical"
+    )
+  )
+
+# View the structure of reshaped data
+str(temp_winter_percentile)
+```
+
+##### **This tibble contains 151 years of temperature data with mean temperatures, anomalies, and standardized values. It also categorizes each year into percentile-based categories based on 10th and 90th percentile thresholds.**
+
+```{r plot_categorized_mean_anomalies_of_winter_temperatures, fig.align="center", fig.cap="Figure 16: Categorized winter temperature anomalies by year."}
+
+# Plot mean anomalies color-coded by percentile category
+p <- ggplot(temp_winter_percentile, aes(x = year, y = mean_anomaly, fill = percentile_category))  +
+  geom_col() +
+  scale_fill_manual(values = c("cool" = "green", "warm" = "blueviolet", "typical" = "red")) +
+  theme_bw() +
+  labs(title = "Categorized Winter Temperature Anomalies",
+       x = "Year",
+       y = expression("Deviations from mean temperature("~degree~C~")"),
+       color = "Temp. Class"
+       ) +
+    theme(
+      plot.title = element_text(size = 12, face = "bold")
+    )
+
+# Display plot
+p
+# Save the plot
+ggsave("mean_percentile.pdf", p, width = 10, height = 5)
+```
+
+##### **This categorized plot highlights years with exceptionally low or high winter temperatures. Warm anomalies dominate recent decades, reflecting broader climate warming.**
+
+
+##### e. Now you can assess the relationship between the duration of ice cover on the lakes (averaged) and the temperature conditions. The simplest way (of many) to do this is to plot the raw values against each, separating out the lakes (by colour or facet).  First, however, you will need to make a dataset with the duration and the temperature data.  You can do this using a `left_join`, which you may have not encountered yet so I've given the code here. **You'll need to change the data frame names as appropriate from what I have used.
+```{r summary_of_avg_ice_duration}
+# Summary of avg_ice_duration
+summary(avg_ice_duration) 
+```
+
+##### **This dataset summarizes average ice duration data from 1851 to 2019 for two lakes (Mendota and Monona), showing average ice duration (avg_duration) with some missing values.**
+
+```{r remove_lakeid_column_in_avg_ice_duration}
+# Filter the dataset
+avg_iceduration <- avg_ice_duration |>
+  select(year, avg_duration) |>
+  rename(mean_ice_duration = avg_duration) # Rename avg_duration column
+
+# View structure of reshaped data
+str(avg_iceduration)
+```
+
+##### **This tibble contains 331 records of average ice duration days by year.**
+
+```{r view_summary_of_winter_airtemp}
+# Summary of winter_airtemp data
+summary(winter_airtemp_mean)
+```
+##### **The dataset spans 1869 to 2019, showing mean winter air temperatures and anomalies with values ranging from -5.28°C to 2.70°C and corresponding scaled anomalies from -2.25 to 2.93.**
+
+```{r remove_anomaly_columns_in_winter_airtemp_mean}
+# Filter the dataset
+avg_airtemp <- winter_airtemp_mean |>
+  select(year, mean_temp) |>
+  rename(mean_winter_temperature = mean_temp) # Rename mean_temp column
+
+# View structure of reshaped data
+str(avg_airtemp)
+```
+
+##### **This tibble contains annual mean Winter temperature data from 1869 to 2019 across 151 years.**
+
+```{r use_left_join_to_merge_datasets}
+# Merge ice duration data with air temperature records using year as a key
+airtemp_iceduration <- avg_iceduration |>
+  left_join(avg_airtemp, by = "year")
+
+# View summary of reshaped data
+summary(airtemp_iceduration)
+```
+
+##### **This summary shows that from 1851 to 2019, average yearly winter temperatures ranged from -5.28°C to 2.70°C with some missing values, while the Ice duration range from 38.5 to 160.5 days.**
+
+##### f. You should have a data frame with three columns: year, mean ice duration, and mean winter temperature. The temperature data don't start until 1869 so we may want to remove years before that as well.  Finally, plot the mean winter temperature against ice duration to assess their correlation, colour the points by the winter air temperature quantile class, and add a label to the plot showing the correlation coefficient.
+
+```{r filter_temperatures_from_1869}
+# Filter out years before 1869 since temperature data starts from 1869
+airtemp_iceduration_clean <- airtemp_iceduration |>
+  filter(year >= 1869)
+
+# View the summary of the reshaped data 
+summary(airtemp_iceduration_clean)
+```
+
+##### **This summary describes annual data from 1869 to 2019, with average ice duration and mean winter temperatures ranging from -5.28°C to 2.70°C, with mean temperature of -1.81°C.**
+
+```{r Add_10th and 89.5th_quantile_breaks_winter_temperature}
+# Categorize winter temperatures into 'cool', 'typical', and 'warm' based on quantiles (10% and 89.5%)
+airtemp_iceduration_clean <- airtemp_iceduration_clean |>
+  mutate(
+    temp_quantile = cut(
+      mean_winter_temperature,
+      breaks = quantile(mean_winter_temperature, probs = c(0, 0.1, 0.895, 1), na.rm = TRUE),
+        labels = c("cool", "typical", "warm"),
+        include.lowest = TRUE)
+    )
+
+# View summary of reshaped data
+summary(airtemp_iceduration_clean)
+```
+
+##### **This summary shows annual data from 1869 to 2019, with ice duration and mean winter temperatures ranging from -5.28°C to 2.70°C. The temperatures are grouped into three quantile classes—32 cool years, 238 typical years, and 32 warm years.**
+
+```{r compute_correlation_coefficient_ice_duration_in_winter}
+# Calculate the Pearson correlation between mean winter temperature and ice duration
+cor_value <- airtemp_iceduration_clean |>
+  summarise(
+    cor_value = cor(mean_ice_duration, mean_winter_temperature, use = "complete.obs")
+  ) |>
+  pull(cor_value) # Pull the value
+
+# Display the value
+cor_value
+```
+
+##### **A correlation of -0.4246128 indicates a moderate negative relationship, where higher winter temperatures are associated with shorter ice cover duration.**
+
+```{r plot_mean_winter_temperature_vs_ice_duration, fig.align = "center", fig.cap="Figure 17: Scatter plot illustrating the relationship between mean winter air temperature and mean ice duration (days) across years, categorized by winter temperature quantiles."}
+
+# Plot the relationship between mean ice duration and mean winter temperature, color-coded by temperature class
+# A linear regression line is added to highlight the trend
+
+plot_compare <- ggplot(airtemp_iceduration_clean, aes(x = mean_ice_duration, y = mean_winter_temperature)) +
+  geom_point(aes(color = temp_quantile), alpha = 0.7) + 
+  geom_smooth(method = "lm", formula = y~x, se = TRUE, lty = "dashed") + # Add trend lines
+  scale_color_manual(values = c("cool" = "blue", "typical" = "gray", "warm" = "red")) + # Set colors 
+  theme_bw() +
+  labs(
+    title = expression("Mean Ice Duration (Days) vs. Mean Winter Air Temperature ("~degree~C~")"),
+    subtitle = "Data classified by winter temperature quantiles (cool, typical, warm)",
+    y = expression("Mean winter temperature ("~degree~C~")"),
+    x = "Mean ice duration (days)",
+    color = "Temperature class"
+  ) +
+  theme(
+    plot.title = element_text(size = 12, face = "bold"),
+    plot.subtitle = element_text(face = "italic")
+  ) +
+  annotate(
+    "text",
+    x = min(airtemp_iceduration_clean$mean_ice_duration), 
+    y = max(airtemp_iceduration_clean$mean_winter_temperature),
+    label = paste0("Correlation: ", round(cor_value, 2)),
+    hjust = 0,
+    size = 3,
+    color = "black"
+    )
+
+# Display the plot
+plot_compare
+```
+
+##### **The scatter plot reveals a moderate negative correlation (r = -0.42) between mean winter temperature and ice duration. As temperatures increase, ice duration generally decreases. This trend is consistent across temperature classes: cool years tend to have longer ice duration, while warm years show shorter durations.**
